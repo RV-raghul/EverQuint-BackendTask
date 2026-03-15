@@ -183,7 +183,7 @@ const cancelBooking = async (id) => {
     throw err;
   }
 
-  // ── Step 2: Already cancelled → no-op ───────────────────────────────
+  // ── Step 2: Already cancelled  ───────────────────────────────
   // just returning the existing cancelled booking
   if (booking.status === 'cancelled') {
     return booking;

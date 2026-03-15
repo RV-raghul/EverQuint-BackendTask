@@ -4,6 +4,7 @@ import IdempotencyKey from '../models/IdempotencyKey.js';
 import {
   isWithinBusinessHours,
   validateBookingDuration,
+  isBookingInPast,
 } from '../utils/businessHours.js';
 
 // ── Check if a room has any overlapping confirmed bookings ─────────────────
@@ -68,7 +69,7 @@ const createBooking = async (data, idempotencyKey) => {
     }
   }
 
-  // ── Step 2: Room exists? ───────────────────────────────────────────────
+    // ── Step 2: Room exists? ───────────────────────────────────────────────
   const room = await Room.findById(roomId);
   if (!room) {
     const err = new Error(`Room with id "${roomId}" not found`);
@@ -77,7 +78,16 @@ const createBooking = async (data, idempotencyKey) => {
     throw err;
   }
 
-  // ── Step 3: Validate duration ──────────────────────────────────────────
+  // ── Step 3: Check if booking is in the past ────────────────────────── ← ADD THIS
+  const pastCheck = isBookingInPast(startTime);
+  if (!pastCheck.valid) {
+    const err = new Error(pastCheck.message);
+    err.statusCode = 400;
+    err.errorType = 'ValidationError';
+    throw err;
+  }
+
+  // ── Step 4: Validate duration ──────────────────────────────────────────
   const durationError = validateBookingDuration(startTime, endTime);
   if (durationError) {
     const err = new Error(durationError);
@@ -86,7 +96,7 @@ const createBooking = async (data, idempotencyKey) => {
     throw err;
   }
 
-  // ── Step 4: Validate business hours ───────────────────────────────────
+  // ── Step 5: Validate business hours ───────────────────────────────────
   const businessHoursCheck = isWithinBusinessHours(startTime, endTime);
   if (!businessHoursCheck.valid) {
     const err = new Error(businessHoursCheck.message);
@@ -95,7 +105,7 @@ const createBooking = async (data, idempotencyKey) => {
     throw err;
   }
 
-  // ── Step 5: Check for overlapping bookings ─────────────────────────────
+  // ── Step 6: Check for overlapping bookings ─────────────────────────────
   const overlap = await hasOverlap(roomId, startTime, endTime);
   if (overlap) {
     const err = new Error('Room is already booked for this time slot');
@@ -104,7 +114,7 @@ const createBooking = async (data, idempotencyKey) => {
     throw err;
   }
 
-  // ── Step 6: Create the booking ─────────────────────────────────────────
+  // ── Step 7: Create the booking ─────────────────────────────────────────
   const booking = await Booking.create({
     roomId,
     title,
@@ -114,7 +124,7 @@ const createBooking = async (data, idempotencyKey) => {
     status: 'confirmed',
   });
 
-  // ── Step 7: Mark idempotency key as completed ──────────────────────────
+  // ── Step 8: Mark idempotency key as completed ──────────────────────────
   if (idempotencyKey) {
     await IdempotencyKey.findOneAndUpdate(
       { key: idempotencyKey, organizerEmail },
@@ -160,4 +170,46 @@ const listBookings = async ({ roomId, from, to, limit = 20, offset = 0 }) => {
   };
 };
 
-export default { createBooking, listBookings, hasOverlap };
+
+// ── Cancel Booking ─────────────────────────────────────────────────────────
+const cancelBooking = async (id) => {
+
+  // ── Step 1: Find the booking ─────────────────────────────────────────
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    const err = new Error(`Booking with id "${id}" not found`);
+    err.statusCode = 404;
+    err.errorType = 'NotFoundError';
+    throw err;
+  }
+
+  // ── Step 2: Already cancelled → no-op ───────────────────────────────
+  // just returning the existing cancelled booking
+  if (booking.status === 'cancelled') {
+    return booking;
+  }
+
+  // ── Step 3: Grace period check ───────────────────────────────────────
+  // Booking can only be cancelled up to 1 hour before startTime
+  const now = new Date();
+  const oneHourBeforeStart = new Date(
+    booking.startTime.getTime() - 60 * 60 * 1000
+  );
+
+  if (now > oneHourBeforeStart) {
+    const err = new Error(
+      'Booking can only be cancelled up to 1 hour before the start time'
+    );
+    err.statusCode = 400;
+    err.errorType = 'ValidationError';
+    throw err;
+  }
+
+  // ── Step 4: Cancel the booking ───────────────────────────────────────
+  booking.status = 'cancelled';
+  await booking.save();
+
+  return booking;
+};
+
+export default { createBooking, listBookings, hasOverlap, cancelBooking  };

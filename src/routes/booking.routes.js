@@ -30,5 +30,5 @@ router.post(
 );
 
 router.get('/', bookingController.listBookings);
-
+router.post('/:id/cancel', bookingController.cancelBooking);
 export default router;

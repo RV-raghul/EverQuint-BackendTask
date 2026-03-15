@@ -88,10 +88,26 @@ const getTotalBusinessHours = (fromISO, toISO, timezone = 'UTC') => {
   return totalHours;
 };
 
+// ── Check if booking is in the past ───────────────────────────────────────
+const isBookingInPast = (startISO) => {
+  const start = DateTime.fromISO(startISO);
+  const now = DateTime.now();
+
+  if (start < now) {
+    return {
+      valid: false,
+      message: 'Booking start time cannot be in the past',
+    };
+  }
+
+  return { valid: true };
+};
+
 export {
   isWithinBusinessHours,
   validateBookingDuration,
   getTotalBusinessHours,
+  isBookingInPast,
   BUSINESS_START,
   BUSINESS_END,
   BUSINESS_DAYS,

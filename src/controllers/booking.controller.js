@@ -20,4 +20,14 @@ const listBookings = async (req, res, next) => {
   }
 };
 
-export default { createBooking, listBookings };
+
+const cancelBooking = async (req, res, next) => {
+  try {
+    const booking = await bookingService.cancelBooking(req.params.id);
+    res.json(booking);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export default { createBooking, listBookings, cancelBooking };

@@ -28,4 +28,5 @@ router.post(
 
 router.get('/', roomController.listRooms);
 
+
 export default router;

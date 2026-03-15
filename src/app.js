@@ -14,7 +14,7 @@ app.use('/rooms', roomRoutes);
 app.use('/bookings', bookingRoutes);
 app.use('/reports', reportRoutes);
 
-// error handler — always last
+// error handler
 app.use(errorHandler);
 
 export default app;
